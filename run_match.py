@@ -20,12 +20,22 @@ def match_file(text: str, pattern_text: str, algo: str, mode: str, threshold: fl
     text_norm = normalize(text)
     pattern_norm = normalize(pattern_text)
     if mode == 'exact':
-        # treat the whole pattern as a single string
+        # treat exact mode as sentence-level exact matching for `exact` algo,
+        # fuzzy for similarity, and Horspool for substring search
         if algo == 'fuzzy':
             ratio = difflib.SequenceMatcher(None, pattern_norm, text_norm).ratio()
             return ratio * 100.0
         elif algo == 'horspool':
             return 100.0 if horspool.search(text_norm, pattern_norm) else 0.0
+        elif algo == 'exact':
+            # split pattern into sentences and count exact sentence matches
+            patterns = split_sentences(pattern_norm)
+            text_sents = split_sentences(text_norm)
+            total = len(patterns)
+            if total == 0:
+                return 0.0
+            matched = sum(1 for p in patterns if any(p == ts for ts in text_sents))
+            return (matched * 100.0) / total
         else:
             return 100.0 if pattern_norm in text_norm else 0.0
 
