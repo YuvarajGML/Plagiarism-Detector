@@ -3,6 +3,94 @@ import { FileDown, FileJson, FileSpreadsheet } from 'lucide-react'
 import BenchmarkChart from './BenchmarkChart'
 import ShiftTableGrid from './ShiftTableGrid'
 
+const escapePdfText = (text) =>
+  String(text)
+    .replace(/\\/g, '\\\\')
+    .replace(/\(/g, '\\(')
+    .replace(/\)/g, '\\)')
+    .replace(/[^\x20-\x7E]/g, ' ')
+
+const wrapPdfText = (text, maxLength = 92) => {
+  const words = String(text).replace(/\s+/g, ' ').trim().split(' ')
+  const lines = []
+  let line = ''
+
+  words.forEach((word) => {
+    const nextLine = line ? `${line} ${word}` : word
+    if (nextLine.length > maxLength && line) {
+      lines.push(line)
+      line = word
+    } else {
+      line = nextLine
+    }
+  })
+
+  if (line) lines.push(line)
+  return lines
+}
+
+const createPdfBlob = (lines) => {
+  const pageWidth = 595
+  const pageHeight = 842
+  const marginX = 48
+  const lineHeight = 14
+  const startY = 790
+  const pages = []
+
+  let currentPage = []
+  let y = startY
+
+  lines.forEach((line) => {
+    if (y < 54) {
+      pages.push(currentPage)
+      currentPage = []
+      y = startY
+    }
+    currentPage.push({ text: line, y })
+    y -= lineHeight
+  })
+  pages.push(currentPage)
+
+  const objects = [
+    '<< /Type /Catalog /Pages 2 0 R >>',
+    `<< /Type /Pages /Kids [${pages.map((_, index) => `${3 + index * 2} 0 R`).join(' ')}] /Count ${pages.length} >>`
+  ]
+
+  pages.forEach((pageLines, index) => {
+    const pageObjectId = 3 + index * 2
+    const contentObjectId = pageObjectId + 1
+    const content = [
+      'BT',
+      '/F1 10 Tf',
+      ...pageLines.map(({ text, y: lineY }) => `1 0 0 1 ${marginX} ${lineY} Tm (${escapePdfText(text)}) Tj`),
+      'ET'
+    ].join('\n')
+
+    objects.push(
+      `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${pageWidth} ${pageHeight}] /Resources << /Font << /F1 << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >> >> >> /Contents ${contentObjectId} 0 R >>`,
+      `<< /Length ${content.length} >>\nstream\n${content}\nendstream`
+    )
+  })
+
+  let pdf = '%PDF-1.4\n'
+  const offsets = [0]
+
+  objects.forEach((object, index) => {
+    offsets.push(pdf.length)
+    pdf += `${index + 1} 0 obj\n${object}\nendobj\n`
+  })
+
+  const xrefOffset = pdf.length
+  pdf += `xref\n0 ${objects.length + 1}\n`
+  pdf += '0000000000 65535 f \n'
+  offsets.slice(1).forEach((offset) => {
+    pdf += `${String(offset).padStart(10, '0')} 00000 n \n`
+  })
+  pdf += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF`
+
+  return new Blob([pdf], { type: 'application/pdf' })
+}
+
 export default function AnalysisDashboard({
   similarity,
   selectedAlgorithm,
@@ -96,34 +184,40 @@ export default function AnalysisDashboard({
       downloadAnchor.click();
       downloadAnchor.remove();
     } else if (type === 'PDF') {
-      let textReport = `========================================================\n`;
-      textReport += `               PLAGSCAN PRO ANALYSIS REPORT             \n`;
-      textReport += `========================================================\n`;
-      textReport += `Date: ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}\n`;
-      textReport += `Overall Similarity: ${similarity}%\n`;
-      textReport += `Algorithm: ${selectedAlgorithm.toUpperCase()}\n`;
-      textReport += `--------------------------------------------------------\n`;
-      textReport += `SUMMARY STATISTICS:\n`;
-      textReport += `- Exact Matches: ${exactCount}\n`;
-      textReport += `- Near Matches: ${nearCount}\n`;
-      textReport += `- Structural Matches: ${structCount}\n`;
-      textReport += `--------------------------------------------------------\n`;
-      textReport += `MATCH DETAILS:\n`;
-      matchSegments.forEach(m => {
-        textReport += `\n[Match ID ${m.id}] Type: ${m.type.toUpperCase()} | Similarity: ${m.similarity}%\n`;
-        textReport += `Original (Line ${m.originalLine}): "${m.originalFull || m.original}"\n`;
-        textReport += `Suspect  (Line ${m.plagiarizedLine}): "${m.plagiarizedFull || m.plagiarized}"\n`;
-        textReport += `Edit Distance: ${m.distance} | Algorithm: ${m.algorithm}\n`;
-      });
-      textReport += `========================================================\n`;
+      const reportLines = [
+        'PLAGSCAN PRO ANALYSIS REPORT',
+        '',
+        `Date: ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}`,
+        `Overall Similarity: ${similarity}%`,
+        `Algorithm: ${selectedAlgorithm.toUpperCase()}`,
+        '',
+        'SUMMARY STATISTICS',
+        `Exact Matches: ${exactCount}`,
+        `Near Matches: ${nearCount}`,
+        `Structural Matches: ${structCount}`,
+        '',
+        'MATCH DETAILS'
+      ];
 
-      const dataStr = "data:text/plain;charset=utf-8," + encodeURIComponent(textReport);
+      matchSegments.forEach(m => {
+        reportLines.push('')
+        reportLines.push(`Match ID ${m.id}: ${m.type.toUpperCase()} | Similarity: ${m.similarity}%`)
+        reportLines.push(`Original line ${m.originalLine}:`)
+        reportLines.push(...wrapPdfText(m.originalFull || m.original))
+        reportLines.push(`Suspect line ${m.plagiarizedLine}:`)
+        reportLines.push(...wrapPdfText(m.plagiarizedFull || m.plagiarized))
+        reportLines.push(`Edit Distance: ${m.distance} | Algorithm: ${m.algorithm}`)
+      });
+
+      const pdfBlob = createPdfBlob(reportLines);
+      const pdfUrl = URL.createObjectURL(pdfBlob);
       const downloadAnchor = document.createElement('a');
-      downloadAnchor.setAttribute("href", dataStr);
+      downloadAnchor.setAttribute("href", pdfUrl);
       downloadAnchor.setAttribute("download", `plagscan_pro_report_${similarity}percent.pdf`);
       document.body.appendChild(downloadAnchor);
       downloadAnchor.click();
       downloadAnchor.remove();
+      URL.revokeObjectURL(pdfUrl);
     }
   }
 
@@ -141,9 +235,9 @@ export default function AnalysisDashboard({
             <span className="text-[10px] font-bold text-text-secondary uppercase tracking-wider">Similarity Score</span>
           </div>
 
-          <div className="relative flex items-center justify-center w-36 h-36 mt-4">
+          <div className="relative grid place-items-center w-36 h-36 mt-4">
             {/* SVG Thin circular progress ring */}
-            <svg className="w-full h-full transform -rotate-90">
+            <svg viewBox="0 0 108 108" className="w-full h-full transform -rotate-90">
               <circle
                 stroke="#E2E8F0"
                 fill="transparent"
@@ -166,11 +260,11 @@ export default function AnalysisDashboard({
                 strokeLinecap="round"
               />
             </svg>
-            <div className="absolute flex flex-col items-center justify-center text-center">
-              <span className="text-4xl font-extrabold text-text-primary tracking-tight">
+            <div className="absolute inset-0 text-center leading-none">
+              <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-[38px] font-extrabold text-text-primary">
                 {isAnalyzing ? '...' : `${similarity}%`}
               </span>
-              <span className="text-[9px] text-text-secondary uppercase font-semibold tracking-wider mt-0.5">
+              <span className="absolute left-1/2 top-[66%] -translate-x-1/2 text-[9px] text-text-secondary uppercase font-semibold whitespace-nowrap">
                 {similarity < 20 ? 'Clean' : similarity <= 50 ? 'Suspicious' : 'Plagiarized'}
               </span>
             </div>

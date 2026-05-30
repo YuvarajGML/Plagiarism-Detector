@@ -8,40 +8,53 @@ import LogBar from './components/LogBar'
 import { SAMPLE_DOCUMENTS, SAMPLE_FILES, LOG_MESSAGES } from './data/mockData'
 import { computeMatchSegments, computeOverallSimilarity } from './utils/horspool'
 
+const createInitialComparison = () => {
+  const originalFile = SAMPLE_FILES.find(f => f.name === 'essay_original.txt')
+  const suspectFile = SAMPLE_FILES.find(f => f.name === 'assignment_v1.txt')
+
+  if (!originalFile || !suspectFile) {
+    return {
+      leftDoc: null,
+      rightDoc: null,
+      matchSegments: [],
+      similarity: 0
+    }
+  }
+
+  const leftDoc = {
+    ...originalFile,
+    content: SAMPLE_DOCUMENTS.original
+  }
+  const rightDoc = {
+    ...suspectFile,
+    content: SAMPLE_DOCUMENTS.plagiarized
+  }
+  const matchSegments = computeMatchSegments(leftDoc.content, rightDoc.content)
+  const similarity = computeOverallSimilarity(matchSegments, leftDoc.content, rightDoc.content)
+
+  return {
+    leftDoc,
+    rightDoc,
+    matchSegments,
+    similarity
+  }
+}
+
+const INITIAL_COMPARISON = createInitialComparison()
+
 export default function App() {
   const [selectedAlgorithm, setSelectedAlgorithm] = useState('horspool')
   const [files, setFiles] = useState(SAMPLE_FILES)
-  const [leftDoc, setLeftDoc] = useState(null)
-  const [rightDoc, setRightDoc] = useState(null)
+  const [leftDoc, setLeftDoc] = useState(INITIAL_COMPARISON.leftDoc)
+  const [rightDoc, setRightDoc] = useState(INITIAL_COMPARISON.rightDoc)
   const [nextColumnToFill, setNextColumnToFill] = useState('left') // kept for matrix interaction
 
   // Analysis & Log states
   const [isAnalyzing, setIsAnalyzing] = useState(false)
-  const [similarity, setSimilarity] = useState(0)
+  const [similarity, setSimilarity] = useState(INITIAL_COMPARISON.similarity)
   const [logs, setLogs] = useState([])
   const [highlightedSegmentId, setHighlightedSegmentId] = useState(null)
-  const [matchSegments, setMatchSegments] = useState([])
-
-  // Load initial documents on mount
-  useEffect(() => {
-    // Left column gets original essay
-    const origFile = files.find(f => f.name === 'essay_original.txt')
-    // Right column gets suspect essay
-    const suspectFile = files.find(f => f.name === 'assignment_v1.txt')
-
-    if (origFile && suspectFile) {
-      setLeftDoc({
-        ...origFile,
-        content: SAMPLE_DOCUMENTS.original
-      })
-      setRightDoc({
-        ...suspectFile,
-        content: SAMPLE_DOCUMENTS.plagiarized
-      })
-      // The next file clicked will fill the left side (overwriting it)
-      setNextColumnToFill('left')
-    }
-  }, [])
+  const [matchSegments, setMatchSegments] = useState(INITIAL_COMPARISON.matchSegments)
 
   // Calculate target similarity based on loaded files
   const getTargetSimilarity = (fileA, fileB) => {

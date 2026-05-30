@@ -34,10 +34,22 @@ function horspoolSearch(text, pattern) {
   return -1
 }
 
+function normalizeWords(text) {
+  return text
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .split(/\s+/)
+    .filter(Boolean)
+}
+
+function normalizeText(text) {
+  return normalizeWords(text).join(' ')
+}
+
 // ─── 3. Levenshtein distance (word-level, capped for speed) ──────────────────
 function levenshtein(a, b) {
-  const wa = a.toLowerCase().split(/\s+/)
-  const wb = b.toLowerCase().split(/\s+/)
+  const wa = normalizeWords(a)
+  const wb = normalizeWords(b)
   const rows = wa.length + 1
   const cols = wb.length + 1
   const dp = Array.from({ length: rows }, (_, i) =>
@@ -56,18 +68,70 @@ function levenshtein(a, b) {
 
 // ─── 4. Jaccard similarity over word sets ────────────────────────────────────
 function jaccard(a, b) {
-  const sa = new Set(a.toLowerCase().split(/\s+/).filter(Boolean))
-  const sb = new Set(b.toLowerCase().split(/\s+/).filter(Boolean))
+  const sa = new Set(normalizeWords(a))
+  const sb = new Set(normalizeWords(b))
   let inter = 0
   for (const w of sa) if (sb.has(w)) inter++
   const union = sa.size + sb.size - inter
   return union === 0 ? 0 : inter / union
 }
 
+function wordOverlap(a, b) {
+  const sa = new Set(normalizeWords(a))
+  const sb = new Set(normalizeWords(b))
+  if (sa.size === 0 || sb.size === 0) return 0
+
+  let inter = 0
+  for (const w of sa) if (sb.has(w)) inter++
+
+  const dice = (2 * inter) / (sa.size + sb.size)
+  const containment = inter / Math.min(sa.size, sb.size)
+  return Math.max(dice, containment * 0.9)
+}
+
+function shingles(words, size) {
+  if (words.length < size) return []
+  const grams = []
+  for (let i = 0; i <= words.length - size; i++) {
+    grams.push(words.slice(i, i + size).join(' '))
+  }
+  return grams
+}
+
+function shingleOverlap(a, b, size = 3) {
+  const aGrams = shingles(normalizeWords(a), size)
+  const bGrams = shingles(normalizeWords(b), size)
+  if (aGrams.length === 0 || bGrams.length === 0) return 0
+
+  const sb = new Set(bGrams)
+  let inter = 0
+  for (const gram of new Set(aGrams)) if (sb.has(gram)) inter++
+  return inter / Math.min(new Set(aGrams).size, sb.size)
+}
+
+function phraseHitScore(source, target) {
+  if (normalizeText(source) === normalizeText(target)) return 1
+
+  const words = normalizeWords(source)
+  const targetNorm = normalizeText(target)
+  const maxWindow = Math.min(6, words.length)
+
+  for (let windowSize = maxWindow; windowSize >= 3; windowSize--) {
+    for (let i = 0; i <= words.length - windowSize; i++) {
+      const pattern = words.slice(i, i + windowSize).join(' ')
+      if (horspoolSearch(targetNorm, pattern) !== -1) {
+        return Math.min(0.45 + windowSize * 0.04, 0.72)
+      }
+    }
+  }
+
+  return 0
+}
+
 // ─── 5. Split text into sentences (non-empty, min 4 words) ───────────────────
 function toSentences(text) {
   return text
-    .split(/\n+/)
+    .split(/(?<=[.!?])\s+|\n+/)
     .map(s => s.trim())
     .filter(s => s.length > 10 && s.split(/\s+/).length >= 4)
 }
@@ -102,9 +166,8 @@ export function computeMatchSegments(leftText, rightText) {
   // Guard: common generic upload preview — do not treat as matchable content
   if (ltrim.startsWith('Content preview for uploaded file:') && rtrim.startsWith('Content preview for uploaded file:')) return []
 
-  // Guard: if texts are identical but very short, avoid spurious exact matches
   const wordCount = (s) => s.trim().split(/\s+/).filter(Boolean).length
-  if (ltrim === rtrim && wordCount(ltrim) < 40) return []
+  if (normalizeText(ltrim) === normalizeText(rtrim) && wordCount(ltrim) < 40) return []
 
   const leftSentences = toSentences(leftText)
   const rightSentences = toSentences(rightText)
@@ -126,15 +189,12 @@ export function computeMatchSegments(leftText, rightText) {
       if (usedRight.has(ri)) continue
       const suspSent = rightSentences[ri]
 
-      // Try Horspool exact search first (use a 6-word window as pattern)
-      const words = origSent.split(/\s+/)
-      const windowSize = Math.min(6, words.length)
-      const pattern = words.slice(0, windowSize).join(' ')
-      const exactHit = horspoolSearch(suspSent, pattern)
-
-      // Compute Jaccard for scoring
+      // Combine exact phrase hits, word overlap, and shingle fingerprints.
       const jScore = jaccard(origSent, suspSent)
-      const combined = exactHit !== -1 ? Math.max(jScore, 0.92) : jScore
+      const overlapScore = wordOverlap(origSent, suspSent)
+      const shingleScore = Math.max(shingleOverlap(origSent, suspSent, 2), shingleOverlap(origSent, suspSent, 3))
+      const exactScore = phraseHitScore(origSent, suspSent)
+      const combined = Math.max(jScore, overlapScore, shingleScore, exactScore)
 
       if (combined > bestScore) {
         bestScore = combined
@@ -145,11 +205,11 @@ export function computeMatchSegments(leftText, rightText) {
     }
 
     // Only emit a segment if similarity is meaningful
-    if (bestScore >= 0.35 && bestRightSent) {
+    if (bestScore >= 0.28 && bestRightSent) {
       const editDist = levenshtein(origSent, bestRightSent)
-      const origWords = origSent.split(/\s+/).length
+      const origWords = normalizeWords(origSent).length
       const type = classifyType(bestScore, editDist, origWords)
-      const simPct = Math.round(bestScore * 100)
+      const simPct = Math.min(Math.round(bestScore * 125), 100)
 
       // Mark as used so the same right sentence doesn't match twice
       const ri = rightSentences.indexOf(bestRightSent)
@@ -182,10 +242,25 @@ export function computeMatchSegments(leftText, rightText) {
  * Compute an overall similarity score from segments
  */
 export function computeOverallSimilarity(segments, leftText, rightText) {
+  const leftNorm = normalizeText(leftText || '')
+  const rightNorm = normalizeText(rightText || '')
+  if (!leftNorm || !rightNorm) return 0
+  if (leftNorm === rightNorm) return 100
   if (segments.length === 0) return 0
-  // Weighted average of top segments
+
+  const globalScore = Math.max(
+    jaccard(leftText, rightText),
+    wordOverlap(leftText, rightText),
+    shingleOverlap(leftText, rightText, 2),
+    shingleOverlap(leftText, rightText, 3)
+  )
+
+  // Weighted average of top segments, blended with document-level coverage.
   const top = segments.slice(0, 5)
   const weightedSum = top.reduce((sum, s, i) => sum + s.similarity * (5 - i), 0)
   const totalWeight = top.reduce((sum, _, i) => sum + (5 - i), 0)
-  return Math.min(Math.round(weightedSum / totalWeight), 100)
+  const segmentScore = weightedSum / totalWeight
+  const calibratedGlobal = Math.min(globalScore * 150, 100)
+
+  return Math.min(Math.round(segmentScore * 0.65 + calibratedGlobal * 0.35), 100)
 }
