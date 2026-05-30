@@ -60,7 +60,68 @@ export default function AnalysisDashboard({
   const progressBgClass = getProgressBackground(similarity)
 
   const handleExport = (type) => {
-    alert(`Exporting ${type} report for PlagScan Pro analysis results...`)
+    const reportData = {
+      appName: "PlagScan Pro",
+      timestamp: new Date().toISOString(),
+      similarityScore: `${similarity}%`,
+      algorithmSelected: selectedAlgorithm,
+      exactMatchesCount: 12,
+      nearMatchesCount: 8,
+      structuralMatchesCount: 4,
+      matches: MATCH_SEGMENTS
+    };
+
+    if (type === 'JSON') {
+      const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(reportData, null, 2));
+      const downloadAnchor = document.createElement('a');
+      downloadAnchor.setAttribute("href", dataStr);
+      downloadAnchor.setAttribute("download", `plagscan_pro_report_${similarity}percent.json`);
+      document.body.appendChild(downloadAnchor);
+      downloadAnchor.click();
+      downloadAnchor.remove();
+    } else if (type === 'CSV') {
+      let csvContent = "data:text/csv;charset=utf-8,";
+      csvContent += "Match ID,Type,Similarity %,Original Line,Plagiarized Line,Edit Distance,Algorithm\n";
+      MATCH_SEGMENTS.forEach(m => {
+        csvContent += `${m.id},${m.type},${m.similarity},${m.originalLine},${m.plagiarizedLine},${m.distance},${m.algorithm}\n`;
+      });
+      const encodedUri = encodeURI(csvContent);
+      const downloadAnchor = document.createElement('a');
+      downloadAnchor.setAttribute("href", encodedUri);
+      downloadAnchor.setAttribute("download", `plagscan_pro_report_${similarity}percent.csv`);
+      document.body.appendChild(downloadAnchor);
+      downloadAnchor.click();
+      downloadAnchor.remove();
+    } else if (type === 'PDF') {
+      let textReport = `========================================================\n`;
+      textReport += `               PLAGSCAN PRO ANALYSIS REPORT             \n`;
+      textReport += `========================================================\n`;
+      textReport += `Date: ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}\n`;
+      textReport += `Overall Similarity: ${similarity}%\n`;
+      textReport += `Algorithm: ${selectedAlgorithm.toUpperCase()}\n`;
+      textReport += `--------------------------------------------------------\n`;
+      textReport += `SUMMARY STATISTICS:\n`;
+      textReport += `- Exact Matches: 12\n`;
+      textReport += `- Near Matches: 8\n`;
+      textReport += `- Structural Matches: 4\n`;
+      textReport += `--------------------------------------------------------\n`;
+      textReport += `MATCH DETAILS:\n`;
+      MATCH_SEGMENTS.forEach(m => {
+        textReport += `\n[Match ID ${m.id}] Type: ${m.type.toUpperCase()} | Similarity: ${m.similarity}%\n`;
+        textReport += `Original (Line ${m.originalLine}): "${m.original}"\n`;
+        textReport += `Suspect  (Line ${m.plagiarizedLine}): "${m.plagiarized}"\n`;
+        textReport += `Edit Distance: ${m.distance} | Algorithm: ${m.algorithm}\n`;
+      });
+      textReport += `========================================================\n`;
+
+      const dataStr = "data:text/plain;charset=utf-8," + encodeURIComponent(textReport);
+      const downloadAnchor = document.createElement('a');
+      downloadAnchor.setAttribute("href", dataStr);
+      downloadAnchor.setAttribute("download", `plagscan_pro_report_${similarity}percent.pdf`);
+      document.body.appendChild(downloadAnchor);
+      downloadAnchor.click();
+      downloadAnchor.remove();
+    }
   }
 
   const extraMetrics = activeSegment ? getSegmentExtraMetrics(activeSegment.id) : null

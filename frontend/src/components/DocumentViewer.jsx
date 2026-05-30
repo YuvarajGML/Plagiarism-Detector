@@ -118,25 +118,53 @@ export default function DocumentViewer({
         <div className="flex items-center space-x-5 text-[11px] font-medium text-text-secondary">
           <span className="uppercase text-[10px] tracking-wider font-semibold">Highlight Legend:</span>
           
-          <div className="flex items-center space-x-1.5">
+          <div 
+            className="flex items-center space-x-1.5 cursor-help"
+            title="Character-by-character identical copy of text, detected via exact string matching (e.g. Horspool/KMP)."
+          >
             <span className="w-3 h-3 rounded bg-red-500/25 border border-red-300" />
-            <span>Exact Match</span>
+            <span className="border-b border-dashed border-slate-300">Exact Match</span>
           </div>
 
-          <div className="flex items-center space-x-1.5">
+          <div 
+            className="flex items-center space-x-1.5 cursor-help"
+            title="Slightly modified text containing paraphrasing, word shuffling, or minor insertions/deletions (detected via edit distance)."
+          >
             <span className="w-3 h-3 rounded bg-orange-500/25 border border-orange-300" />
-            <span>Near Match</span>
+            <span className="border-b border-dashed border-slate-300">Near Match</span>
           </div>
 
-          <div className="flex items-center space-x-1.5">
+          <div 
+            className="flex items-center space-x-1.5 cursor-help"
+            title="Similar sentence structures, layouts, or grammatical patterns with different vocabulary (detected via shingle winnowing fingerprints)."
+          >
             <span className="w-3 h-3 rounded bg-yellow-500/25 border border-yellow-300" />
-            <span>Structural Match</span>
+            <span className="border-b border-dashed border-slate-300">Structural Match</span>
           </div>
         </div>
 
-        <div className="flex items-center space-x-1 text-[10px] text-text-secondary">
-          <Info size={12} className="text-text-secondary" />
-          <span>Click on highlighted spans to cross-reference</span>
+        <div className="flex items-center space-x-1.5 text-[10px] text-text-secondary relative group cursor-help">
+          <Info size={12} className="text-primary animate-pulse" />
+          <span className="border-b border-dashed border-slate-300">How highlights work?</span>
+          
+          {/* Tooltip Card explaining highlights */}
+          <div className="absolute right-0 top-6 hidden group-hover:block w-72 bg-slate-800 text-white text-[11px] p-3 rounded-lg shadow-xl border border-slate-700 z-50 whitespace-normal leading-relaxed">
+            <p className="font-bold text-white mb-1.5 text-xs">Matching Algorithm Legend</p>
+            <div className="space-y-2">
+              <div>
+                <span className="font-semibold text-red-300">🔴 Exact Match:</span> 
+                <span className="text-slate-200"> Character-for-character copies of the source document caught by exact search algorithms.</span>
+              </div>
+              <div>
+                <span className="font-semibold text-orange-300">🟠 Near Match:</span> 
+                <span className="text-slate-200"> Paraphrased or slightly modified sentences with minor edits (e.g., word insertions/swaps).</span>
+              </div>
+              <div>
+                <span className="font-semibold text-yellow-200">🟡 Structural Match:</span> 
+                <span className="text-slate-200"> Text sharing identical fingerprint sequences and structural syntax, caught via winnowing shingles.</span>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 

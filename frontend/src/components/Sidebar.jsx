@@ -1,13 +1,15 @@
 import React, { useState } from 'react'
-import { FileText, UploadCloud, CheckCircle, AlertTriangle, XCircle, Clock } from 'lucide-react'
+import { FileText, UploadCloud, CheckCircle, AlertTriangle, XCircle, Clock, Trash2, PanelLeft, PanelRight } from 'lucide-react'
 
 export default function Sidebar({
   files,
   leftDoc,
   rightDoc,
-  onFileSelect,
+  onLoadLeft,
+  onLoadRight,
   onBatchCompare,
-  onUploadSuccess
+  onUploadSuccess,
+  onClearQueue
 }) {
   const [isDragOver, setIsDragOver] = useState(false)
 
@@ -23,16 +25,12 @@ export default function Sidebar({
   const handleDrop = (e) => {
     e.preventDefault()
     setIsDragOver(false)
-    
-    // Simulate reading files
     const droppedFiles = Array.from(e.dataTransfer.files)
     if (droppedFiles.length > 0) {
       const file = droppedFiles[0]
       const extension = file.name.split('.').pop().toLowerCase()
       const allowed = ['txt', 'pdf', 'docx', 'py', 'java']
-      
       if (allowed.includes(extension)) {
-        // Add file simulation
         const newFile = {
           id: Date.now(),
           name: file.name,
@@ -95,8 +93,19 @@ export default function Sidebar({
 
   return (
     <aside className="w-1/5 min-w-[260px] max-w-[320px] bg-white border-r border-slate-200 flex flex-col h-full select-none">
-      <div className="p-4 border-b border-slate-100">
+      {/* Header */}
+      <div className="p-4 border-b border-slate-100 flex items-center justify-between">
         <h2 className="text-sm font-semibold text-text-primary tracking-wide">Documents</h2>
+        {files.length > 0 && (
+          <button
+            onClick={onClearQueue}
+            title="Clear all files from queue"
+            className="flex items-center space-x-1 text-[10px] text-slate-400 hover:text-red-500 transition-colors duration-150 group"
+          >
+            <Trash2 size={12} className="group-hover:scale-110 transition-transform" />
+            <span>Clear</span>
+          </button>
+        )}
       </div>
 
       {/* Drag & Drop Upload Zone */}
@@ -132,33 +141,53 @@ export default function Sidebar({
         </label>
       </div>
 
+      {/* Legend for L/R panels */}
+      <div className="px-4 pb-2 flex items-center space-x-3 text-[9px] text-text-secondary">
+        <span className="flex items-center space-x-1">
+          <span className="inline-block w-2 h-2 rounded-sm bg-primary" />
+          <span>Left panel</span>
+        </span>
+        <span className="flex items-center space-x-1">
+          <span className="inline-block w-2 h-2 rounded-sm bg-indigo-500" />
+          <span>Right panel</span>
+        </span>
+      </div>
+
       {/* File List */}
       <div className="flex-1 overflow-y-auto px-4 pb-4 space-y-2 custom-scrollbar">
         <p className="text-[10px] font-semibold text-text-secondary uppercase tracking-wider mb-2">
           File Queue ({files.length})
         </p>
 
+        {files.length === 0 && (
+          <div className="flex flex-col items-center justify-center py-8 text-center">
+            <FileText size={24} className="text-slate-300 mb-2" />
+            <p className="text-[11px] text-slate-400">No files in queue.</p>
+            <p className="text-[10px] text-slate-300 mt-1">Upload files above to get started.</p>
+          </div>
+        )}
+
         {files.map((file) => {
           const isLeft = leftDoc && leftDoc.name === file.name
           const isRight = rightDoc && rightDoc.name === file.name
-          
+
           return (
             <div
               key={file.id}
-              onClick={() => onFileSelect(file)}
-              className={`p-3 rounded-lg border cursor-pointer transition-all duration-200 select-none relative overflow-hidden group ${
+              className={`p-3 rounded-lg border transition-all duration-200 select-none relative overflow-hidden group ${
                 isLeft
                   ? 'border-primary/50 bg-primary-light/20 shadow-sm ring-1 ring-primary/30'
                   : isRight
-                  ? 'border-indigo-200 bg-indigo-50/20 shadow-sm ring-1 ring-indigo-200/50'
+                  ? 'border-indigo-200 bg-indigo-50/30 shadow-sm ring-1 ring-indigo-200/50'
                   : 'border-slate-200 hover:border-slate-300 hover:bg-slate-50 bg-white'
               }`}
             >
+              {/* File Info */}
               <div className="flex items-start space-x-2.5">
                 <FileText
                   size={16}
-                  className={`mt-0.5 transition-colors ${
-                    isLeft ? 'text-primary' : isRight ? 'text-indigo-500' : 'text-text-secondary group-hover:text-text-primary'
+                  className={`mt-0.5 flex-shrink-0 transition-colors ${
+                    isLeft ? 'text-primary' : isRight ? 'text-indigo-500' : 'text-text-secondary'
                   }`}
                 />
                 <div className="flex-1 min-w-0">
@@ -167,24 +196,51 @@ export default function Sidebar({
                   </p>
                   <p className="text-[10px] text-text-secondary mt-0.5">{file.size}</p>
                 </div>
-              </div>
-
-              {/* Badges & Pills */}
-              <div className="flex items-center justify-between mt-2.5">
-                {getStatusPill(file.status)}
-                
-                {/* Column Indicators */}
-                <div className="flex space-x-1">
+                {/* Panel badges */}
+                <div className="flex space-x-1 flex-shrink-0">
                   {isLeft && (
-                    <span className="text-[9px] px-1 bg-primary text-white font-semibold rounded uppercase">
+                    <span className="text-[9px] px-1 py-0.5 bg-primary text-white font-bold rounded uppercase leading-none">
                       L
                     </span>
                   )}
                   {isRight && (
-                    <span className="text-[9px] px-1 bg-indigo-600 text-white font-semibold rounded uppercase">
+                    <span className="text-[9px] px-1 py-0.5 bg-indigo-600 text-white font-bold rounded uppercase leading-none">
                       R
                     </span>
                   )}
+                </div>
+              </div>
+
+              {/* Status pill + Load buttons */}
+              <div className="flex items-center justify-between mt-2.5">
+                {getStatusPill(file.status)}
+
+                {/* Load Left / Load Right explicit controls */}
+                <div className="flex items-center space-x-1">
+                  <button
+                    onClick={(e) => { e.stopPropagation(); onLoadLeft(file) }}
+                    title="Load into Left panel"
+                    className={`flex items-center space-x-0.5 px-1.5 py-0.5 rounded text-[9px] font-semibold transition-all duration-150 border ${
+                      isLeft
+                        ? 'bg-primary text-white border-primary'
+                        : 'bg-white text-primary border-primary/40 hover:bg-primary hover:text-white hover:border-primary'
+                    }`}
+                  >
+                    <PanelLeft size={9} />
+                    <span>L</span>
+                  </button>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); onLoadRight(file) }}
+                    title="Load into Right panel"
+                    className={`flex items-center space-x-0.5 px-1.5 py-0.5 rounded text-[9px] font-semibold transition-all duration-150 border ${
+                      isRight
+                        ? 'bg-indigo-600 text-white border-indigo-600'
+                        : 'bg-white text-indigo-600 border-indigo-300 hover:bg-indigo-600 hover:text-white hover:border-indigo-600'
+                    }`}
+                  >
+                    <PanelRight size={9} />
+                    <span>R</span>
+                  </button>
                 </div>
               </div>
             </div>

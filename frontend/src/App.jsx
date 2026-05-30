@@ -12,7 +12,7 @@ export default function App() {
   const [files, setFiles] = useState(SAMPLE_FILES)
   const [leftDoc, setLeftDoc] = useState(null)
   const [rightDoc, setRightDoc] = useState(null)
-  const [nextColumnToFill, setNextColumnToFill] = useState('left')
+  const [nextColumnToFill, setNextColumnToFill] = useState('left') // kept for matrix interaction
 
   // Analysis & Log states
   const [isAnalyzing, setIsAnalyzing] = useState(false)
@@ -93,29 +93,34 @@ This draft document is pending final grading. The core algorithms implemented ar
     return `Content preview for uploaded file: ${filename}\nLine 1: Sample text.\nLine 2: Horspool pattern matching algorithm is running.\nLine 3: Clean status verified.`
   }
 
-  // File selection logic
-  const handleFileSelect = (file) => {
+  // Explicit load left / right handlers
+  const handleLoadLeft = (file) => {
     if (isAnalyzing) return
-
-    // If Compare All mode was active, switch back to single document view
-    if (selectedAlgorithm === 'compare') {
-      setSelectedAlgorithm('horspool')
-    }
-
+    if (selectedAlgorithm === 'compare') setSelectedAlgorithm('horspool')
     const content = getFileContent(file.name)
-    const fullFile = { ...file, content }
+    setLeftDoc({ ...file, content })
+    setHighlightedSegmentId(null)
+    setLogs((prev) => [...prev, `► Loaded "${file.name}" into Left panel.`])
+  }
 
-    if (nextColumnToFill === 'left') {
-      setLeftDoc(fullFile)
-      setNextColumnToFill('right')
-      // Reset segment focus
-      setHighlightedSegmentId(null)
-    } else {
-      setRightDoc(fullFile)
-      setNextColumnToFill('left')
-      // Reset segment focus
-      setHighlightedSegmentId(null)
-    }
+  const handleLoadRight = (file) => {
+    if (isAnalyzing) return
+    if (selectedAlgorithm === 'compare') setSelectedAlgorithm('horspool')
+    const content = getFileContent(file.name)
+    setRightDoc({ ...file, content })
+    setHighlightedSegmentId(null)
+    setLogs((prev) => [...prev, `► Loaded "${file.name}" into Right panel.`])
+  }
+
+  // Clear entire file queue
+  const handleClearQueue = () => {
+    if (isAnalyzing) return
+    setFiles([])
+    setLeftDoc(null)
+    setRightDoc(null)
+    setHighlightedSegmentId(null)
+    setSimilarity(0)
+    setLogs((prev) => [...prev, `► Queue cleared. Upload new files to continue.`])
   }
 
   // Drag & drop file addition
@@ -207,7 +212,7 @@ This draft document is pending final grading. The core algorithms implemented ar
   }
 
   return (
-    <div className="h-screen w-screen flex flex-col bg-background font-sans select-none overflow-hidden pb-20">
+    <div className="h-screen w-screen flex flex-col bg-background font-sans select-none overflow-hidden pb-8">
       {/* Top Navbar */}
       <Navbar
         selectedAlgorithm={selectedAlgorithm}
@@ -224,9 +229,11 @@ This draft document is pending final grading. The core algorithms implemented ar
           files={files}
           leftDoc={leftDoc}
           rightDoc={rightDoc}
-          onFileSelect={handleFileSelect}
+          onLoadLeft={handleLoadLeft}
+          onLoadRight={handleLoadRight}
           onBatchCompare={() => setSelectedAlgorithm('compare')}
           onUploadSuccess={handleUploadSuccess}
+          onClearQueue={handleClearQueue}
         />
 
         {/* Center Viewer Area */}
@@ -256,8 +263,13 @@ This draft document is pending final grading. The core algorithms implemented ar
         />
       </div>
 
-      {/* Console Log Console */}
-      <LogBar logs={logs} />
+      {/* Console Log Bar */}
+      <LogBar
+        logs={logs}
+        isAnalyzing={isAnalyzing}
+        processedCount={logs.length}
+        totalCount={LOG_MESSAGES.length}
+      />
     </div>
   )
 }
