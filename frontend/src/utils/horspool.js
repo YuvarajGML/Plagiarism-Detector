@@ -89,8 +89,22 @@ function classifyType(jaccardScore, editDist, origWords) {
  * @returns {Array} matchSegments array compatible with DocumentViewer / AnalysisDashboard
  */
 export function computeMatchSegments(leftText, rightText) {
+  if (!leftText || !rightText) return []
+
   const leftLines = leftText.split('\n')
   const rightLines = rightText.split('\n')
+
+  // Guard: ignore binary placeholders or unreadable files
+  const ltrim = leftText.trim()
+  const rtrim = rightText.trim()
+  if (ltrim.startsWith('BINARY_FILE:') || rtrim.startsWith('BINARY_FILE:')) return []
+
+  // Guard: common generic upload preview — do not treat as matchable content
+  if (ltrim.startsWith('Content preview for uploaded file:') && rtrim.startsWith('Content preview for uploaded file:')) return []
+
+  // Guard: if texts are identical but very short, avoid spurious exact matches
+  const wordCount = (s) => s.trim().split(/\s+/).filter(Boolean).length
+  if (ltrim === rtrim && wordCount(ltrim) < 40) return []
 
   const leftSentences = toSentences(leftText)
   const rightSentences = toSentences(rightText)

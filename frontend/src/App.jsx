@@ -69,6 +69,10 @@ export default function App() {
 
   // Get file content
   const getFileContent = (filename) => {
+    // Prefer content from uploaded files in state
+    const queued = files.find(f => f.name === filename)
+    if (queued && queued.content) return queued.content
+
     if (filename === 'essay_original.txt') return SAMPLE_DOCUMENTS.original
     if (filename === 'assignment_v1.txt') return SAMPLE_DOCUMENTS.plagiarized
     if (filename === 'research_paper.pdf') {
@@ -135,6 +139,26 @@ This draft document is pending final grading. The core algorithms implemented ar
       `► Queue updated. Ready for analysis.`
     ])
   }
+
+  // Auto-run matching whenever two documents are loaded (non-blocking quick match)
+  useEffect(() => {
+    if (isAnalyzing) return
+    if (!leftDoc || !rightDoc) {
+      setMatchSegments([])
+      setSimilarity(0)
+      return
+    }
+
+    // quick compute without the animated logs (user can still run full analyze)
+    const leftText = leftDoc.content || ''
+    const rightText = rightDoc.content || ''
+    const segments = computeMatchSegments(leftText, rightText)
+    const finalSim = computeOverallSimilarity(segments, leftText, rightText)
+
+    setMatchSegments(segments)
+    setSimilarity(finalSim)
+    setLogs(prev => [...prev, `► Auto-generated ${segments.length} match segments for ${leftDoc.name} vs ${rightDoc.name}`])
+  }, [leftDoc, rightDoc])
 
   // Similarity Matrix click to load documents
   const handleMatrixCellClick = (fileA, colFile) => {

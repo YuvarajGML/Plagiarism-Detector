@@ -29,17 +29,33 @@ export default function Sidebar({
     if (droppedFiles.length > 0) {
       const file = droppedFiles[0]
       const extension = file.name.split('.').pop().toLowerCase()
-      const allowed = ['txt', 'pdf', 'docx', 'py', 'java']
-      if (allowed.includes(extension)) {
-        const newFile = {
-          id: Date.now(),
-          name: file.name,
-          size: `${(file.size / 1024).toFixed(1)} KB`,
-          status: 'pending'
+      const allowedText = ['txt', 'py', 'java', 'c', 'cpp', 'js', 'jsx', 'ts', 'md', 'html']
+      const allowedBinary = ['pdf', 'docx']
+
+      const baseFile = {
+        id: Date.now(),
+        name: file.name,
+        size: `${(file.size / 1024).toFixed(1)} KB`,
+        status: 'pending'
+      }
+
+      if (allowedText.includes(extension)) {
+        const reader = new FileReader()
+        reader.onload = (ev) => {
+          const text = ev.target.result
+          onUploadSuccess({ ...baseFile, content: text, isBinary: false })
         }
-        onUploadSuccess(newFile)
+        reader.onerror = () => {
+          alert(`Failed to read file ${file.name} as text.`)
+          onUploadSuccess({ ...baseFile, content: `Content preview for uploaded file: ${file.name}\n[Read error]`, isBinary: false })
+        }
+        reader.readAsText(file, 'utf-8')
+      } else if (allowedBinary.includes(extension)) {
+        // Can't parse PDF/DOCX client-side reliably — provide clear message
+        const content = `BINARY_FILE: ${file.name} — cannot parse contents client-side.`
+        onUploadSuccess({ ...baseFile, content, isBinary: true })
       } else {
-        alert('Unsupported file format. Please upload .txt, .pdf, .docx, .py, or .java files.')
+        alert('Unsupported file format. Please upload text files (.txt, .py, .java, .c, .js, .md) or binary (.pdf, .docx).')
       }
     }
   }
@@ -47,13 +63,28 @@ export default function Sidebar({
   const handleFileChange = (e) => {
     if (e.target.files && e.target.files.length > 0) {
       const file = e.target.files[0]
-      const newFile = {
+      const extension = file.name.split('.').pop().toLowerCase()
+      const baseFile = {
         id: Date.now(),
         name: file.name,
         size: `${(file.size / 1024).toFixed(1)} KB`,
         status: 'pending'
       }
-      onUploadSuccess(newFile)
+
+      const allowedText = ['txt', 'py', 'java', 'c', 'cpp', 'js', 'jsx', 'ts', 'md', 'html']
+      const allowedBinary = ['pdf', 'docx']
+
+      if (allowedText.includes(extension)) {
+        const reader = new FileReader()
+        reader.onload = (ev) => onUploadSuccess({ ...baseFile, content: ev.target.result, isBinary: false })
+        reader.onerror = () => onUploadSuccess({ ...baseFile, content: `Content preview for uploaded file: ${file.name}\n[Read error]`, isBinary: false })
+        reader.readAsText(file, 'utf-8')
+      } else if (allowedBinary.includes(extension)) {
+        const content = `BINARY_FILE: ${file.name} — cannot parse contents client-side.`
+        onUploadSuccess({ ...baseFile, content, isBinary: true })
+      } else {
+        alert('Unsupported file format. Please upload text files (.txt, .py, .java, .c, .js, .md) or binary (.pdf, .docx).')
+      }
     }
   }
 
