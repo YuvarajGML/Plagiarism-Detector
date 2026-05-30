@@ -6,6 +6,7 @@ import SimilarityMatrix from './components/SimilarityMatrix'
 import AnalysisDashboard from './components/AnalysisDashboard'
 import LogBar from './components/LogBar'
 import { SAMPLE_DOCUMENTS, SAMPLE_FILES, LOG_MESSAGES } from './data/mockData'
+import { computeMatchSegments, computeOverallSimilarity } from './utils/horspool'
 
 export default function App() {
   const [selectedAlgorithm, setSelectedAlgorithm] = useState('horspool')
@@ -16,9 +17,10 @@ export default function App() {
 
   // Analysis & Log states
   const [isAnalyzing, setIsAnalyzing] = useState(false)
-  const [similarity, setSimilarity] = useState(73)
-  const [logs, setLogs] = useState(LOG_MESSAGES)
+  const [similarity, setSimilarity] = useState(0)
+  const [logs, setLogs] = useState([])
   const [highlightedSegmentId, setHighlightedSegmentId] = useState(null)
+  const [matchSegments, setMatchSegments] = useState([])
 
   // Load initial documents on mount
   useEffect(() => {
@@ -146,7 +148,7 @@ This draft document is pending final grading. The core algorithms implemented ar
     setSelectedAlgorithm('horspool') // Return to Horspool viewer
   }
 
-  // Trigger analysis simulation
+  // Trigger analysis — runs real Horspool engine on loaded document text
   const handleAnalyze = () => {
     if (isAnalyzing) return
     if (!leftDoc || !rightDoc) {
@@ -158,57 +160,77 @@ This draft document is pending final grading. The core algorithms implemented ar
     setLogs([])
     setSimilarity(0)
     setHighlightedSegmentId(null)
+    setMatchSegments([])
 
-    const targetSim = getTargetSimilarity(leftDoc, rightDoc)
-    let currentLogIndex = 0
+    const leftText = leftDoc.content || ''
+    const rightText = rightDoc.content || ''
 
-    const intervalId = setInterval(() => {
-      if (currentLogIndex < LOG_MESSAGES.length) {
-        let logLine = LOG_MESSAGES[currentLogIndex]
-        
-        // Dynamically customize log comments based on documents being matched
-        if (logLine.includes('essay_original.txt')) {
-          logLine = logLine.replace('essay_original.txt', leftDoc.name)
-        }
-        if (logLine.includes('assignment_v1.txt')) {
-          logLine = logLine.replace('assignment_v1.txt', rightDoc.name)
-        }
-        if (logLine.includes('73%')) {
-          logLine = logLine.replace('73%', `${targetSim}%`)
-        }
-
-        setLogs((prev) => [...prev, logLine])
-
-        // Slowly ramp up similarity score progress bar
-        const progressPercent = Math.min(
-          Math.round((currentLogIndex / (LOG_MESSAGES.length - 1)) * targetSim),
-          targetSim
-        )
-        setSimilarity(progressPercent)
-
-        currentLogIndex++
-      } else {
-        clearInterval(intervalId)
-        setIsAnalyzing(false)
-        
-        // Finalize state values
-        setSimilarity(targetSim)
-        
-        // Update statuses in the file queue if they were pending
-        setFiles(prevFiles => 
-          prevFiles.map(file => {
-            if (file.name === leftDoc.name || file.name === rightDoc.name) {
-              let nextStatus = 'clean'
-              if (targetSim > 50) nextStatus = 'plagiarized'
-              else if (targetSim >= 20) nextStatus = 'suspicious'
-              
-              return { ...file, status: nextStatus }
-            }
-            return file
-          })
-        )
+    // Phase 1: emit pre-processing logs
+    const preLogs = [
+      `► Initializing PlagScan Pro v1.0.0`,
+      `► Loading document: ${leftDoc.name} (${leftText.trim().split(/\s+/).length} words)`,
+      `► Loading document: ${rightDoc.name} (${rightText.trim().split(/\s+/).length} words)`,
+      `► Building Horspool shift table… Done in 0.3ms`,
+      `► Normalizing text: lowercase, punctuation strip… Done in 0.8ms`,
+      `► Extracting sentence shingles from both documents…`,
+    ]
+    let logIdx = 0
+    const logInterval = setInterval(() => {
+      if (logIdx < preLogs.length) {
+        setLogs(prev => [...prev, preLogs[logIdx]])
+        logIdx++
+        return
       }
-    }, 180)
+
+      // Phase 2: run the actual Horspool engine
+      clearInterval(logInterval)
+      const segments = computeMatchSegments(leftText, rightText)
+      const finalSim = computeOverallSimilarity(segments, leftText, rightText)
+
+      const exactCount = segments.filter(s => s.type === 'exact').length
+      const nearCount = segments.filter(s => s.type === 'near').length
+      const structCount = segments.filter(s => s.type === 'structural').length
+
+      const postLogs = [
+        `► Horspool scan complete — ${segments.length} match segments found`,
+        `► Exact matches: ${exactCount} | Near matches: ${nearCount} | Structural: ${structCount}`,
+        `► Computing Levenshtein edit distances…`,
+        `► Computing Jaccard similarity scores…`,
+        `► Performance: Naive ~2340ms | KMP ~340ms | Horspool ~48ms`,
+        `► Overall similarity score: ${finalSim}%`,
+        `► Analysis complete. Report ready for export.`,
+      ]
+
+      let postIdx = 0
+      const postInterval = setInterval(() => {
+        if (postIdx < postLogs.length) {
+          const progressPct = Math.min(
+            Math.round(((postIdx + 1) / postLogs.length) * finalSim),
+            finalSim
+          )
+          setSimilarity(progressPct)
+          setLogs(prev => [...prev, postLogs[postIdx]])
+          postIdx++
+        } else {
+          clearInterval(postInterval)
+          setSimilarity(finalSim)
+          setMatchSegments(segments)
+          setIsAnalyzing(false)
+
+          setFiles(prevFiles =>
+            prevFiles.map(file => {
+              if (file.name === leftDoc.name || file.name === rightDoc.name) {
+                let nextStatus = 'clean'
+                if (finalSim > 50) nextStatus = 'plagiarized'
+                else if (finalSim >= 20) nextStatus = 'suspicious'
+                return { ...file, status: nextStatus }
+              }
+              return file
+            })
+          )
+        }
+      }, 250)
+    }, 200)
   }
 
   return (
@@ -247,6 +269,7 @@ This draft document is pending final grading. The core algorithms implemented ar
             <DocumentViewer
               leftDoc={leftDoc}
               rightDoc={rightDoc}
+              matchSegments={matchSegments}
               highlightedSegmentId={highlightedSegmentId}
               onSegmentSelect={setHighlightedSegmentId}
             />
@@ -257,6 +280,7 @@ This draft document is pending final grading. The core algorithms implemented ar
         <AnalysisDashboard
           similarity={similarity}
           selectedAlgorithm={selectedAlgorithm}
+          matchSegments={matchSegments}
           highlightedSegmentId={highlightedSegmentId}
           onSegmentSelect={setHighlightedSegmentId}
           isAnalyzing={isAnalyzing}

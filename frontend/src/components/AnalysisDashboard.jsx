@@ -1,29 +1,28 @@
 import React, { useEffect, useState } from 'react'
-import { FileDown, FileJson, FileSpreadsheet, AlertTriangle, ShieldCheck, Flame } from 'lucide-react'
-import { MATCH_SEGMENTS } from '../data/mockData'
+import { FileDown, FileJson, FileSpreadsheet } from 'lucide-react'
 import BenchmarkChart from './BenchmarkChart'
 import ShiftTableGrid from './ShiftTableGrid'
 
 export default function AnalysisDashboard({
   similarity,
   selectedAlgorithm,
+  matchSegments = [],
   highlightedSegmentId,
   onSegmentSelect,
   isAnalyzing
 }) {
   const [activeSegment, setActiveSegment] = useState(null)
 
-  // Find the selected match segment or default to the highest similarity match (id: 1)
+  // Find the selected match segment or default to the top similarity match
   useEffect(() => {
     if (highlightedSegmentId) {
-      const match = MATCH_SEGMENTS.find((m) => m.id === highlightedSegmentId)
+      const match = matchSegments.find((m) => m.id === highlightedSegmentId)
       if (match) setActiveSegment(match)
     } else {
-      // Default to highest similarity segment
-      const topMatch = [...MATCH_SEGMENTS].sort((a, b) => b.similarity - a.similarity)[0]
+      const topMatch = [...matchSegments].sort((a, b) => b.similarity - a.similarity)[0] || null
       setActiveSegment(topMatch)
     }
-  }, [highlightedSegmentId])
+  }, [highlightedSegmentId, matchSegments])
 
   // Get additional metrics based on segment
   const getSegmentExtraMetrics = (id) => {
@@ -60,15 +59,19 @@ export default function AnalysisDashboard({
   const progressBgClass = getProgressBackground(similarity)
 
   const handleExport = (type) => {
+    const exactCount = matchSegments.filter(s => s.type === 'exact').length
+    const nearCount = matchSegments.filter(s => s.type === 'near').length
+    const structCount = matchSegments.filter(s => s.type === 'structural').length
+
     const reportData = {
       appName: "PlagScan Pro",
       timestamp: new Date().toISOString(),
       similarityScore: `${similarity}%`,
       algorithmSelected: selectedAlgorithm,
-      exactMatchesCount: 12,
-      nearMatchesCount: 8,
-      structuralMatchesCount: 4,
-      matches: MATCH_SEGMENTS
+      exactMatchesCount: exactCount,
+      nearMatchesCount: nearCount,
+      structuralMatchesCount: structCount,
+      matches: matchSegments
     };
 
     if (type === 'JSON') {
@@ -82,7 +85,7 @@ export default function AnalysisDashboard({
     } else if (type === 'CSV') {
       let csvContent = "data:text/csv;charset=utf-8,";
       csvContent += "Match ID,Type,Similarity %,Original Line,Plagiarized Line,Edit Distance,Algorithm\n";
-      MATCH_SEGMENTS.forEach(m => {
+      matchSegments.forEach(m => {
         csvContent += `${m.id},${m.type},${m.similarity},${m.originalLine},${m.plagiarizedLine},${m.distance},${m.algorithm}\n`;
       });
       const encodedUri = encodeURI(csvContent);
@@ -101,15 +104,15 @@ export default function AnalysisDashboard({
       textReport += `Algorithm: ${selectedAlgorithm.toUpperCase()}\n`;
       textReport += `--------------------------------------------------------\n`;
       textReport += `SUMMARY STATISTICS:\n`;
-      textReport += `- Exact Matches: 12\n`;
-      textReport += `- Near Matches: 8\n`;
-      textReport += `- Structural Matches: 4\n`;
+      textReport += `- Exact Matches: ${exactCount}\n`;
+      textReport += `- Near Matches: ${nearCount}\n`;
+      textReport += `- Structural Matches: ${structCount}\n`;
       textReport += `--------------------------------------------------------\n`;
       textReport += `MATCH DETAILS:\n`;
-      MATCH_SEGMENTS.forEach(m => {
+      matchSegments.forEach(m => {
         textReport += `\n[Match ID ${m.id}] Type: ${m.type.toUpperCase()} | Similarity: ${m.similarity}%\n`;
-        textReport += `Original (Line ${m.originalLine}): "${m.original}"\n`;
-        textReport += `Suspect  (Line ${m.plagiarizedLine}): "${m.plagiarized}"\n`;
+        textReport += `Original (Line ${m.originalLine}): "${m.originalFull || m.original}"\n`;
+        textReport += `Suspect  (Line ${m.plagiarizedLine}): "${m.plagiarizedFull || m.plagiarized}"\n`;
         textReport += `Edit Distance: ${m.distance} | Algorithm: ${m.algorithm}\n`;
       });
       textReport += `========================================================\n`;
@@ -177,15 +180,15 @@ export default function AnalysisDashboard({
           <div className="flex items-center justify-center space-x-2.5 mt-5">
             <span className="text-[10px] font-medium bg-red-50 text-red-700 px-2.5 py-1 rounded-full border border-red-100 flex items-center space-x-1">
               <span className="w-1.5 h-1.5 rounded-full bg-red-500"></span>
-              <span>Exact: 12</span>
+              <span>Exact: {matchSegments.filter(s => s.type === 'exact').length}</span>
             </span>
             <span className="text-[10px] font-medium bg-orange-50 text-orange-700 px-2.5 py-1 rounded-full border border-orange-100 flex items-center space-x-1">
               <span className="w-1.5 h-1.5 rounded-full bg-orange-500"></span>
-              <span>Near: 8</span>
+              <span>Near: {matchSegments.filter(s => s.type === 'near').length}</span>
             </span>
             <span className="text-[10px] font-medium bg-yellow-50 text-yellow-700 px-2.5 py-1 rounded-full border border-yellow-100 flex items-center space-x-1">
               <span className="w-1.5 h-1.5 rounded-full bg-yellow-500"></span>
-              <span>Structural: 4</span>
+              <span>Structural: {matchSegments.filter(s => s.type === 'structural').length}</span>
             </span>
           </div>
         </section>

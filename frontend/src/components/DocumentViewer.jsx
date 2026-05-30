@@ -1,11 +1,11 @@
 import React, { useState, useRef } from 'react'
 import { FileText, AlignLeft, Info } from 'lucide-react'
-import { MATCH_SEGMENTS } from '../data/mockData'
 import MatchTooltip from './MatchTooltip'
 
 export default function DocumentViewer({
   leftDoc,
   rightDoc,
+  matchSegments = [],
   highlightedSegmentId,
   onSegmentSelect
 }) {
@@ -62,8 +62,7 @@ export default function DocumentViewer({
   }
 
   const renderLineWithHighlights = (text, lineNum, isLeft) => {
-    // Match segment line index is 1-based in mockData
-    const matchesForLine = MATCH_SEGMENTS.filter((m) =>
+    const matchesForLine = matchSegments.filter((m) =>
       isLeft ? m.originalLine === lineNum : m.plagiarizedLine === lineNum
     )
 
