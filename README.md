@@ -139,6 +139,18 @@ npm run preview
 | **Collapsible console** | Bottom log bar collapses to a status ticker; expands to full log view |
 | **Export reports** | Download results as PDF, JSON, or CSV |
 
+### Test_2 Upgrades — Beyond Pairwise Comparison
+
+| Upgrade | What it adds |
+|---------|--------------|
+| **Source Radar** | Ranks likely web, academic, and cross-language source candidates for the suspect document. |
+| **Corpus Fingerprint Index** | Computes the similarity matrix from queued document content instead of fixed demo values. |
+| **Citation Trust Layer** | Checks whether detected source candidates are cited, missing, or unsupported by a reference section. |
+| **Cross-Language Similarity Probe** | Uses lightweight multilingual normalization to flag translated reuse signals in-browser. |
+| **Evidence-First Reports** | Includes external source confidence, URL, detection mode, and citation status in JSON/CSV/PDF exports. |
+
+The upgrades preserve the original left/right document comparison, highlighting, benchmark, shift-table, upload, logging, matrix, and export features. They add an in-browser source-intelligence layer in `frontend/src/utils/sourceIntel.js` and a dashboard panel in `frontend/src/components/SourceIntelPanel.jsx`.
+
 ---
 
 ## 🐍 Python CLI — String Matching Engine

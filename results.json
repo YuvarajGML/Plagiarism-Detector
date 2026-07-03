@@ -1,4 +1,131 @@
 {
-  "File1.txt": 50.0,
-  "File2.txt": 40.0
+  "_corpus_index": {
+    "document_count": 2,
+    "token_count": 153,
+    "shingle_count": 149
+  },
+  "File1.txt": 80.0,
+  "_source_intel": {
+    "File1.txt": {
+      "external_sources": [
+        {
+          "id": "web-ml-overview",
+          "type": "Web",
+          "title": "Machine Learning Overview",
+          "url": "https://example.edu/machine-learning-overview",
+          "author": "Open Learning Archive",
+          "published": "2024-02-18",
+          "confidence": 63,
+          "citation_status": "No citation section",
+          "cited": false,
+          "detection_mode": "Web source",
+          "evidence": {
+            "score": 0.6,
+            "suspect_sentence": "These systems let computers learn from data without explicit programming.",
+            "source_sentence": "Machine learning is a subset of artificial intelligence focused on computers learning from data without explicit programming.",
+            "cross_language": false
+          }
+        },
+        {
+          "id": "cross-lang-ml-es",
+          "type": "Cross-language",
+          "title": "Aprendizaje automatico y datos",
+          "url": "https://example.es/aprendizaje-automatico",
+          "author": "Biblioteca Digital",
+          "published": "2024-08-22",
+          "confidence": 46,
+          "citation_status": "No citation section",
+          "cited": false,
+          "detection_mode": "Cross-language semantic",
+          "evidence": {
+            "score": 0.46,
+            "suspect_sentence": "These systems let computers learn from data without explicit programming.",
+            "source_sentence": "El aprendizaje automatico es una rama de la inteligencia artificial que permite a las computadoras aprender de los datos sin programacion explicita.",
+            "cross_language": true
+          }
+        }
+      ],
+      "citation_coverage": [
+        {
+          "source_id": "web-ml-overview",
+          "title": "Machine Learning Overview",
+          "cited": false,
+          "status": "No citation section"
+        },
+        {
+          "source_id": "academic-horspool",
+          "title": "Efficient String Matching for Plagiarism Detection",
+          "cited": false,
+          "status": "No citation section"
+        },
+        {
+          "source_id": "cross-lang-ml-es",
+          "title": "Aprendizaje automatico y datos",
+          "cited": false,
+          "status": "No citation section"
+        }
+      ]
+    },
+    "File2.txt": {
+      "external_sources": [
+        {
+          "id": "web-ml-overview",
+          "type": "Web",
+          "title": "Machine Learning Overview",
+          "url": "https://example.edu/machine-learning-overview",
+          "author": "Open Learning Archive",
+          "published": "2024-02-18",
+          "confidence": 63,
+          "citation_status": "No citation section",
+          "cited": false,
+          "detection_mode": "Web source",
+          "evidence": {
+            "score": 0.6,
+            "suspect_sentence": "These systems let computers learn from data without explicit programming.",
+            "source_sentence": "Machine learning is a subset of artificial intelligence focused on computers learning from data without explicit programming.",
+            "cross_language": false
+          }
+        },
+        {
+          "id": "cross-lang-ml-es",
+          "type": "Cross-language",
+          "title": "Aprendizaje automatico y datos",
+          "url": "https://example.es/aprendizaje-automatico",
+          "author": "Biblioteca Digital",
+          "published": "2024-08-22",
+          "confidence": 46,
+          "citation_status": "No citation section",
+          "cited": false,
+          "detection_mode": "Cross-language semantic",
+          "evidence": {
+            "score": 0.46,
+            "suspect_sentence": "These systems let computers learn from data without explicit programming.",
+            "source_sentence": "El aprendizaje automatico es una rama de la inteligencia artificial que permite a las computadoras aprender de los datos sin programacion explicita.",
+            "cross_language": true
+          }
+        }
+      ],
+      "citation_coverage": [
+        {
+          "source_id": "web-ml-overview",
+          "title": "Machine Learning Overview",
+          "cited": false,
+          "status": "No citation section"
+        },
+        {
+          "source_id": "academic-horspool",
+          "title": "Efficient String Matching for Plagiarism Detection",
+          "cited": false,
+          "status": "No citation section"
+        },
+        {
+          "source_id": "cross-lang-ml-es",
+          "title": "Aprendizaje automatico y datos",
+          "cited": false,
+          "status": "No citation section"
+        }
+      ]
+    }
+  },
+  "File2.txt": 50.0
 }

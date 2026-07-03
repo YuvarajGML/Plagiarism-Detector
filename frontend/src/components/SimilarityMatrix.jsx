@@ -1,31 +1,20 @@
-import React, { useState } from 'react'
+import React, { useMemo, useState } from 'react'
 import { Info, HelpCircle } from 'lucide-react'
 
-export default function SimilarityMatrix({ files, onCellClick }) {
+export default function SimilarityMatrix({ files, getFileContent, getCorpusSimilarity, onCellClick }) {
   const [hoveredCell, setHoveredCell] = useState(null)
 
-  // Hardcoded matrix values mapping file names to similarity scores
-  const getMatrixValue = (fileA, fileB) => {
-    if (fileA.id === fileB.id) return 100
+  const matrixValues = useMemo(() => {
+    const values = new Map()
+    files.forEach((rowFile) => {
+      files.forEach((colFile) => {
+        values.set(`${rowFile.id}:${colFile.id}`, getCorpusSimilarity(rowFile, colFile, getFileContent))
+      })
+    })
+    return values
+  }, [files, getCorpusSimilarity, getFileContent])
 
-    const nameA = fileA.name
-    const nameB = fileB.name
-
-    const matches = [
-      { a: 'essay_original.txt', b: 'assignment_v1.txt', val: 73 },
-      { a: 'essay_original.txt', b: 'research_paper.pdf', val: 8 },
-      { a: 'essay_original.txt', b: 'final_submission.docx', val: 12 },
-      { a: 'assignment_v1.txt', b: 'research_paper.pdf', val: 5 },
-      { a: 'assignment_v1.txt', b: 'final_submission.docx', val: 18 },
-      { a: 'research_paper.pdf', b: 'final_submission.docx', val: 15 }
-    ]
-
-    const match = matches.find(
-      (m) => (m.a === nameA && m.b === nameB) || (m.a === nameB && m.b === nameA)
-    )
-
-    return match ? match.val : 10 // default fallback
-  }
+  const getMatrixValue = (fileA, fileB) => matrixValues.get(`${fileA.id}:${fileB.id}`) ?? 0
 
   // Get color based on similarity score
   const getCellColor = (score) => {
@@ -42,7 +31,7 @@ export default function SimilarityMatrix({ files, onCellClick }) {
         <div>
           <h2 className="text-base font-bold text-text-primary">Cross-Document Similarity Matrix</h2>
           <p className="text-xs text-text-secondary mt-1">
-            Comparing all queued documents. Click any intersecting cell to inspect matching segments.
+            Live corpus index over all queued documents. Click any intersecting cell to inspect matching segments.
           </p>
         </div>
         <div className="flex items-center space-x-2 text-[10px] text-text-secondary bg-slate-50 border border-slate-200 px-3 py-1 rounded-lg">

@@ -63,6 +63,7 @@ export default function Sidebar({
   const handleFileChange = (e) => {
     if (e.target.files && e.target.files.length > 0) {
       const file = e.target.files[0]
+      e.target.value = ''
       const extension = file.name.split('.').pop().toLowerCase()
       const baseFile = {
         id: Date.now(),

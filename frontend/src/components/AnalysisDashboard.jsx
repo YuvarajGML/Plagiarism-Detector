@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react'
 import { FileDown, FileJson, FileSpreadsheet } from 'lucide-react'
 import BenchmarkChart from './BenchmarkChart'
 import ShiftTableGrid from './ShiftTableGrid'
+import SourceIntelPanel from './SourceIntelPanel'
 
 const escapePdfText = (text) =>
   String(text)
@@ -95,6 +96,10 @@ export default function AnalysisDashboard({
   similarity,
   selectedAlgorithm,
   matchSegments = [],
+  externalSources = [],
+  corpusStats,
+  citationCoverage = [],
+  novelFeatures = [],
   highlightedSegmentId,
   onSegmentSelect,
   isAnalyzing
@@ -159,6 +164,10 @@ export default function AnalysisDashboard({
       exactMatchesCount: exactCount,
       nearMatchesCount: nearCount,
       structuralMatchesCount: structCount,
+      externalSources,
+      citationCoverage,
+      corpusStats,
+      novelFeatures,
       matches: matchSegments
     };
 
@@ -175,6 +184,10 @@ export default function AnalysisDashboard({
       csvContent += "Match ID,Type,Similarity %,Original Line,Plagiarized Line,Edit Distance,Algorithm\n";
       matchSegments.forEach(m => {
         csvContent += `${m.id},${m.type},${m.similarity},${m.originalLine},${m.plagiarizedLine},${m.distance},${m.algorithm}\n`;
+      });
+      csvContent += "\nExternal Source,Type,Confidence %,Citation Status,Detection Mode,URL\n";
+      externalSources.forEach(source => {
+        csvContent += `"${source.title}",${source.type},${source.confidence},"${source.citationStatus}","${source.detectionMode}",${source.url}\n`;
       });
       const encodedUri = encodeURI(csvContent);
       const downloadAnchor = document.createElement('a');
@@ -195,6 +208,8 @@ export default function AnalysisDashboard({
         `Exact Matches: ${exactCount}`,
         `Near Matches: ${nearCount}`,
         `Structural Matches: ${structCount}`,
+        `External Sources Found: ${externalSources.length}`,
+        `Corpus Documents Indexed: ${corpusStats?.documentCount || 0}`,
         '',
         'MATCH DETAILS'
       ];
@@ -207,6 +222,16 @@ export default function AnalysisDashboard({
         reportLines.push(`Suspect line ${m.plagiarizedLine}:`)
         reportLines.push(...wrapPdfText(m.plagiarizedFull || m.plagiarized))
         reportLines.push(`Edit Distance: ${m.distance} | Algorithm: ${m.algorithm}`)
+      });
+
+      reportLines.push('')
+      reportLines.push('EXTERNAL SOURCE EVIDENCE')
+      externalSources.forEach(source => {
+        reportLines.push('')
+        reportLines.push(`${source.title} | ${source.type} | Confidence: ${source.confidence}%`)
+        reportLines.push(`Citation: ${source.citationStatus} | Mode: ${source.detectionMode}`)
+        reportLines.push(`URL: ${source.url}`)
+        reportLines.push(...wrapPdfText(source.evidence?.sourceSentence || 'No evidence sentence available.'))
       });
 
       const pdfBlob = createPdfBlob(reportLines);
@@ -296,6 +321,13 @@ export default function AnalysisDashboard({
         <section className="p-4 border border-slate-100 rounded-2xl bg-white shadow-sm">
           <ShiftTableGrid />
         </section>
+
+        <SourceIntelPanel
+          externalSources={externalSources}
+          corpusStats={corpusStats}
+          citationCoverage={citationCoverage}
+          novelFeatures={novelFeatures}
+        />
 
         {/* SECTION 4: SEGMENT DETAIL */}
         <section

@@ -1,9 +1,11 @@
 import React from 'react'
-import { Play, Settings, Cpu, Layers } from 'lucide-react'
+import { GitCompare, Globe2, Play, Settings, Layers } from 'lucide-react'
 
 export default function Navbar({
   selectedAlgorithm,
   setSelectedAlgorithm,
+  analysisScope,
+  setAnalysisScope,
   onAnalyze,
   isAnalyzing,
   onOpenSettings
@@ -27,25 +29,51 @@ export default function Navbar({
         </span>
       </div>
 
-      {/* Center Segmented Algorithm Selector */}
-      <div className="flex bg-slate-100 p-1 rounded-lg border border-slate-200">
-        {algorithms.map((algo) => {
-          const isActive = selectedAlgorithm === algo.id
-          return (
-            <button
-              key={algo.id}
-              onClick={() => setSelectedAlgorithm(algo.id)}
-              disabled={isAnalyzing}
-              className={`px-4 py-1.5 rounded-md text-xs font-semibold tracking-wide transition-all duration-200 ${
-                isActive
-                  ? 'bg-white text-primary shadow-sm'
-                  : 'text-text-secondary hover:text-text-primary'
-              } ${isAnalyzing ? 'opacity-50 cursor-not-allowed' : ''}`}
-            >
-              {algo.label}
-            </button>
-          )
-        })}
+      <div className="flex items-center gap-3">
+        <div className="flex bg-slate-100 p-1 rounded-lg border border-slate-200">
+          {[
+            { id: 'pairwise', label: 'Local', icon: GitCompare },
+            { id: 'internet', label: 'Internet', icon: Globe2 }
+          ].map((scope) => {
+            const Icon = scope.icon
+            const isActive = analysisScope === scope.id
+            return (
+              <button
+                key={scope.id}
+                onClick={() => setAnalysisScope(scope.id)}
+                disabled={isAnalyzing}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold tracking-wide transition-all duration-200 ${
+                  isActive
+                    ? 'bg-white text-primary shadow-sm'
+                    : 'text-text-secondary hover:text-text-primary'
+                } ${isAnalyzing ? 'opacity-50 cursor-not-allowed' : ''}`}
+              >
+                <Icon size={13} />
+                <span>{scope.label}</span>
+              </button>
+            )
+          })}
+        </div>
+
+        <div className="flex bg-slate-100 p-1 rounded-lg border border-slate-200">
+          {algorithms.map((algo) => {
+            const isActive = selectedAlgorithm === algo.id
+            return (
+              <button
+                key={algo.id}
+                onClick={() => setSelectedAlgorithm(algo.id)}
+                disabled={isAnalyzing || analysisScope === 'internet'}
+                className={`px-3 py-1.5 rounded-md text-xs font-semibold tracking-wide transition-all duration-200 ${
+                  isActive
+                    ? 'bg-white text-primary shadow-sm'
+                    : 'text-text-secondary hover:text-text-primary'
+                } ${isAnalyzing || analysisScope === 'internet' ? 'opacity-50 cursor-not-allowed' : ''}`}
+              >
+                {algo.label}
+              </button>
+            )
+          })}
+        </div>
       </div>
 
       {/* Right controls */}

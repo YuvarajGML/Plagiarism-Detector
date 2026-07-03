@@ -3,10 +3,19 @@ import Navbar from './components/Navbar'
 import Sidebar from './components/Sidebar'
 import DocumentViewer from './components/DocumentViewer'
 import SimilarityMatrix from './components/SimilarityMatrix'
+import InternetSourceView from './components/InternetSourceView'
 import AnalysisDashboard from './components/AnalysisDashboard'
 import LogBar from './components/LogBar'
 import { SAMPLE_DOCUMENTS, SAMPLE_FILES, LOG_MESSAGES } from './data/mockData'
 import { computeMatchSegments, computeOverallSimilarity } from './utils/horspool'
+import {
+  analyzeCitationCoverage,
+  buildCorpusIndex,
+  findExternalSources,
+  getCorpusSimilarity,
+  getKnownExternalSources,
+  getNovelFeatures
+} from './utils/sourceIntel'
 
 const createInitialComparison = () => {
   const originalFile = SAMPLE_FILES.find(f => f.name === 'essay_original.txt')
@@ -44,6 +53,7 @@ const INITIAL_COMPARISON = createInitialComparison()
 
 export default function App() {
   const [selectedAlgorithm, setSelectedAlgorithm] = useState('horspool')
+  const [analysisScope, setAnalysisScope] = useState('pairwise')
   const [files, setFiles] = useState(SAMPLE_FILES)
   const [leftDoc, setLeftDoc] = useState(INITIAL_COMPARISON.leftDoc)
   const [rightDoc, setRightDoc] = useState(INITIAL_COMPARISON.rightDoc)
@@ -55,6 +65,12 @@ export default function App() {
   const [logs, setLogs] = useState([])
   const [highlightedSegmentId, setHighlightedSegmentId] = useState(null)
   const [matchSegments, setMatchSegments] = useState(INITIAL_COMPARISON.matchSegments)
+  const [externalSources, setExternalSources] = useState([])
+  const [citationCoverage, setCitationCoverage] = useState([])
+  const [corpusStats, setCorpusStats] = useState(null)
+  const [customInternetSources, setCustomInternetSources] = useState([])
+  const novelFeatures = getNovelFeatures()
+  const allExternalSources = [...getKnownExternalSources(), ...customInternetSources]
 
   // Calculate target similarity based on loaded files
   const getTargetSimilarity = (fileA, fileB) => {
@@ -112,6 +128,52 @@ This draft document is pending final grading. The core algorithms implemented ar
     return `Content preview for uploaded file: ${filename}\nLine 1: Sample text.\nLine 2: Horspool pattern matching algorithm is running.\nLine 3: Clean status verified.`
   }
 
+  const refreshSourceIntelligence = (suspectText) => {
+    setExternalSources(findExternalSources(suspectText, allExternalSources))
+    setCitationCoverage(analyzeCitationCoverage(suspectText, allExternalSources))
+  }
+
+  const getInternetSuspectDoc = () => {
+    if (rightDoc) return rightDoc
+    if (leftDoc) return leftDoc
+    const firstTextFile = files.find((file) => !file.isBinary)
+    return firstTextFile ? { ...firstTextFile, content: getFileContent(firstTextFile.name) } : null
+  }
+
+  const handleAddInternetSource = ({ title, url, text }) => {
+    const source = {
+      id: `imported-${Date.now()}`,
+      type: 'Imported Web',
+      title,
+      url,
+      author: 'User imported',
+      published: new Date().toISOString().slice(0, 10),
+      language: 'unknown',
+      citationHints: [title, url].filter(Boolean),
+      text
+    }
+    const nextSources = [...customInternetSources, source]
+    setCustomInternetSources(nextSources)
+    const suspectDoc = getInternetSuspectDoc()
+    if (suspectDoc?.content) {
+      const sources = [...getKnownExternalSources(), ...nextSources]
+      setExternalSources(findExternalSources(suspectDoc.content, sources))
+      setCitationCoverage(analyzeCitationCoverage(suspectDoc.content, sources))
+    }
+    setLogs((prev) => [...prev, `► Imported internet source "${title}" for comparison.`])
+  }
+
+  const handleClearInternetSources = () => {
+    setCustomInternetSources([])
+    const suspectDoc = getInternetSuspectDoc()
+    if (suspectDoc?.content) {
+      const knownSources = getKnownExternalSources()
+      setExternalSources(findExternalSources(suspectDoc.content, knownSources))
+      setCitationCoverage(analyzeCitationCoverage(suspectDoc.content, knownSources))
+    }
+    setLogs((prev) => [...prev, '► Imported internet sources cleared.'])
+  }
+
   // Explicit load left / right handlers
   const handleLoadLeft = (file) => {
     if (isAnalyzing) return
@@ -139,6 +201,9 @@ This draft document is pending final grading. The core algorithms implemented ar
     setRightDoc(null)
     setHighlightedSegmentId(null)
     setSimilarity(0)
+    setMatchSegments([])
+    setExternalSources([])
+    setCitationCoverage([])
     setLogs((prev) => [...prev, `► Queue cleared. Upload new files to continue.`])
   }
 
@@ -170,8 +235,13 @@ This draft document is pending final grading. The core algorithms implemented ar
 
     setMatchSegments(segments)
     setSimilarity(finalSim)
+    refreshSourceIntelligence(rightText)
     setLogs(prev => [...prev, `► Auto-generated ${segments.length} match segments for ${leftDoc.name} vs ${rightDoc.name}`])
-  }, [leftDoc, rightDoc])
+  }, [leftDoc, rightDoc, customInternetSources])
+
+  useEffect(() => {
+    setCorpusStats(buildCorpusIndex(files, getFileContent))
+  }, [files])
 
   // Similarity Matrix click to load documents
   const handleMatrixCellClick = (fileA, colFile) => {
@@ -188,8 +258,13 @@ This draft document is pending final grading. The core algorithms implemented ar
   // Trigger analysis — runs real Horspool engine on loaded document text
   const handleAnalyze = () => {
     if (isAnalyzing) return
-    if (!leftDoc || !rightDoc) {
+    if (analysisScope === 'pairwise' && (!leftDoc || !rightDoc)) {
       alert('Please load two documents from the sidebar to perform matching analysis.')
+      return
+    }
+    const internetSuspectDoc = getInternetSuspectDoc()
+    if (analysisScope === 'internet' && !internetSuspectDoc) {
+      alert('Please upload or load one suspect document before comparing with internet sources.')
       return
     }
 
@@ -199,14 +274,17 @@ This draft document is pending final grading. The core algorithms implemented ar
     setHighlightedSegmentId(null)
     setMatchSegments([])
 
-    const leftText = leftDoc.content || ''
-    const rightText = rightDoc.content || ''
+    const activeSuspectDoc = analysisScope === 'internet' ? internetSuspectDoc : rightDoc
+    const leftText = leftDoc?.content || ''
+    const rightText = activeSuspectDoc?.content || ''
 
     // Phase 1: emit pre-processing logs
     const preLogs = [
       `► Initializing PlagScan Pro v1.0.0`,
-      `► Loading document: ${leftDoc.name} (${leftText.trim().split(/\s+/).length} words)`,
-      `► Loading document: ${rightDoc.name} (${rightText.trim().split(/\s+/).length} words)`,
+      analysisScope === 'pairwise'
+        ? `► Loading document: ${leftDoc.name} (${leftText.trim().split(/\s+/).length} words)`
+        : `► Internet mode: using ${customInternetSources.length} imported sources plus source cache`,
+      `► Loading suspect document: ${activeSuspectDoc.name} (${rightText.trim().split(/\s+/).length} words)`,
       `► Building Horspool shift table… Done in 0.3ms`,
       `► Normalizing text: lowercase, punctuation strip… Done in 0.8ms`,
       `► Extracting sentence shingles from both documents…`,
@@ -222,7 +300,12 @@ This draft document is pending final grading. The core algorithms implemented ar
       // Phase 2: run the actual Horspool engine
       clearInterval(logInterval)
       const segments = computeMatchSegments(leftText, rightText)
-      const finalSim = computeOverallSimilarity(segments, leftText, rightText)
+      const sourceHits = findExternalSources(rightText, allExternalSources)
+      const citations = analyzeCitationCoverage(rightText, allExternalSources)
+      const finalSim =
+        analysisScope === 'internet'
+          ? sourceHits[0]?.confidence || 0
+          : computeOverallSimilarity(segments, leftText, rightText)
 
       const exactCount = segments.filter(s => s.type === 'exact').length
       const nearCount = segments.filter(s => s.type === 'near').length
@@ -233,6 +316,8 @@ This draft document is pending final grading. The core algorithms implemented ar
         `► Exact matches: ${exactCount} | Near matches: ${nearCount} | Structural: ${structCount}`,
         `► Computing Levenshtein edit distances…`,
         `► Computing Jaccard similarity scores…`,
+        `► Searching corpus/imported internet sources... ${sourceHits.length} candidate sources`,
+        `► Citation attribution pass... ${citations.filter(c => c.cited).length} cited sources`,
         `► Performance: Naive ~2340ms | KMP ~340ms | Horspool ~48ms`,
         `► Overall similarity score: ${finalSim}%`,
         `► Analysis complete. Report ready for export.`,
@@ -252,11 +337,13 @@ This draft document is pending final grading. The core algorithms implemented ar
           clearInterval(postInterval)
           setSimilarity(finalSim)
           setMatchSegments(segments)
+          setExternalSources(sourceHits)
+          setCitationCoverage(citations)
           setIsAnalyzing(false)
 
           setFiles(prevFiles =>
             prevFiles.map(file => {
-              if (file.name === leftDoc.name || file.name === rightDoc.name) {
+              if ((leftDoc && file.name === leftDoc.name) || file.name === activeSuspectDoc.name) {
                 let nextStatus = 'clean'
                 if (finalSim > 50) nextStatus = 'plagiarized'
                 else if (finalSim >= 20) nextStatus = 'suspicious'
@@ -276,6 +363,8 @@ This draft document is pending final grading. The core algorithms implemented ar
       <Navbar
         selectedAlgorithm={selectedAlgorithm}
         setSelectedAlgorithm={setSelectedAlgorithm}
+        analysisScope={analysisScope}
+        setAnalysisScope={setAnalysisScope}
         onAnalyze={handleAnalyze}
         isAnalyzing={isAnalyzing}
         onOpenSettings={() => alert('PlagScan Pro Settings:\n- Shingle Size: 9 chars\n- Window Size: 4\n- Noise Threshold: 5 characters\n- Shift Table: ASCII 256 Character Standard')}
@@ -297,9 +386,19 @@ This draft document is pending final grading. The core algorithms implemented ar
 
         {/* Center Viewer Area */}
         <main className="flex-1 p-6 overflow-hidden">
-          {selectedAlgorithm === 'compare' ? (
+          {analysisScope === 'internet' ? (
+            <InternetSourceView
+              suspectDoc={getInternetSuspectDoc()}
+              externalSources={externalSources}
+              customSources={customInternetSources}
+              onAddSource={handleAddInternetSource}
+              onClearSources={handleClearInternetSources}
+            />
+          ) : selectedAlgorithm === 'compare' ? (
             <SimilarityMatrix
               files={files}
+              getFileContent={getFileContent}
+              getCorpusSimilarity={getCorpusSimilarity}
               onCellClick={handleMatrixCellClick}
             />
           ) : (
@@ -318,6 +417,10 @@ This draft document is pending final grading. The core algorithms implemented ar
           similarity={similarity}
           selectedAlgorithm={selectedAlgorithm}
           matchSegments={matchSegments}
+          externalSources={externalSources}
+          corpusStats={corpusStats}
+          citationCoverage={citationCoverage}
+          novelFeatures={novelFeatures}
           highlightedSegmentId={highlightedSegmentId}
           onSegmentSelect={setHighlightedSegmentId}
           isAnalyzing={isAnalyzing}

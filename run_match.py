@@ -9,6 +9,7 @@ import re
 import difflib
 
 from matching import horspool
+from matching import source_intel
 
 def normalize(s: str) -> str:
     return ' '.join(s.replace('\u2019', "'").replace('\u201c','"').replace('\u201d','"').lower().split())
@@ -90,6 +91,11 @@ def main():
     parser.add_argument('--algo', default='horspool', choices=['horspool','horspool-token','fuzzy','exact'])
     parser.add_argument('--mode', default='sentence', choices=['sentence','exact'])
     parser.add_argument('--threshold', type=float, default=0.7)
+    parser.add_argument(
+        '--source-intel',
+        action='store_true',
+        help='add corpus indexing, external-source ranking, citation checks, and cross-language signals'
+    )
     args = parser.parse_args()
 
     if not os.path.isdir(args.directory):
@@ -97,9 +103,20 @@ def main():
         return 1
     pattern_text = open(args.pattern_file, encoding='utf-8').read()
     results = {}
-    for fname in os.listdir(args.directory):
-        if fname.startswith('.'):
-            continue
+    file_names = [fname for fname in os.listdir(args.directory) if not fname.startswith('.')]
+    if args.source_intel:
+        corpus = source_intel.build_corpus_index(
+            [os.path.join(args.directory, fname) for fname in file_names],
+            lambda path: open(path, encoding='utf-8').read()
+        )
+        results['_corpus_index'] = corpus
+        print('Corpus index: %d docs, %d tokens, %d shingles' % (
+            corpus['document_count'],
+            corpus['token_count'],
+            corpus['shingle_count']
+        ))
+
+    for fname in file_names:
         fpath = os.path.join(args.directory, fname)
         text = open(fpath, encoding='utf-8').read()
         pct = match_file(text, pattern_text, args.algo, args.mode, args.threshold)
@@ -108,6 +125,20 @@ def main():
         results[fname] = pct
         if pct >= args.threshold * 100.0:
             print('The input file appears to be plagiarised. %.1f%% of its content matches with the file %s.' % (pct, fname))
+        if args.source_intel:
+            sources = source_intel.find_external_sources(text)
+            citations = source_intel.citation_coverage(text)
+            results.setdefault('_source_intel', {})[fname] = {
+                'external_sources': sources,
+                'citation_coverage': citations,
+            }
+            if sources:
+                top = sources[0]
+                print('Top external source: %s (%d%%, %s)' % (
+                    top['title'],
+                    top['confidence'],
+                    top['citation_status']
+                ))
 
     # save summary
     with open('results.json', 'w', encoding='utf-8') as fh:
